@@ -12,7 +12,7 @@
             margin: 0; padding: 0; width: 100vw; height: 100vh;
             background-color: #f4f4f9; font-family: sans-serif;
             display: flex; flex-direction: column; align-items: center;
-            overflow: hidden; 
+            overflow: hidden; /* Sayfanın aşağı yukarı kaymasını engeller */
         }
 
         model-viewer {
@@ -31,18 +31,19 @@
         }
 
         #ar-button:active { background-color: #0056b3; }
+        #ar-prompt { display: none; }
     </style>
 </head>
 <body>
 
     <model-viewer 
-        src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/webxr.github.io@main/model.glb?v=1" 
+        src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/webxr.github.io@main/model.glb?v=5" 
         ar 
-        ar-modes="scene-viewer webxr quick-look" 
+        ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
         shadow-intensity="1"
         bounds="tight"
-        ar-placement="floor"
+        ar-scale="auto"
         alt="HY Maket 3D Model">
         
         <button slot="ar-button" id="ar-button">

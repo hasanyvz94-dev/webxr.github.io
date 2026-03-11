@@ -2,47 +2,96 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>HY Maket - Profesyonel AR (Model-Viewer)</title>
-    <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.3.0/model-viewer.min.js"></script>
-    
-    <style>
-        body { margin: 0; }
-        model-viewer {
-            width: 100vw;
-            height: 100vh;
-            background-color: #f0f0f0;
-        }
-        #ar-button {
-            background-color: #ffffff;
-            border-radius: 4px;
-            border: none;
-            position: absolute;
-            bottom: 16px;
-            right: 16px;
-            padding: 10px 20px;
-            font-size: 16px;
-            color: #4285f4;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-            cursor: pointer;
-        }
-    </style>
+    <title>HY Maket - WebXR Pro</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+    <script>
+        AFRAME.registerComponent('ar-manager', {
+            init: function () {
+                this.reticle = document.querySelector('#reticle');
+                this.model = document.querySelector('#model');
+                this.infoText = document.querySelector('#infoText');
+                
+                this.el.sceneEl.addEventListener('enter-vr', () => {
+                    if (this.el.sceneEl.is('ar-mode')) {
+                        this.infoText.setAttribute('value', 'Zemini tarayin...');
+                        
+                        const session = this.el.sceneEl.renderer.xr.getSession();
+                        session.addEventListener('select', () => {
+                            if (this.reticle.getAttribute('visible')) {
+                                this.model.setAttribute('visible', 'true');
+                                this.model.object3D.position.copy(this.reticle.object3D.position);
+                                this.model.object3D.quaternion.copy(this.reticle.object3D.quaternion);
+                                this.infoText.setAttribute('value', 'Model Yerlestirildi!');
+                            }
+                        });
+                    }
+                });
+            }
+        });
+
+        AFRAME.registerComponent('ar-hit-test-simple', {
+            init: function () {
+                this.xrHitTestSource = null;
+                this.viewerSpace = null;
+                this.refSpace = null;
+
+                this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
+                    let session = this.el.sceneEl.renderer.xr.getSession();
+                    this.viewerSpace = await session.requestReferenceSpace('viewer');
+                    this.refSpace = await session.requestReferenceSpace('local');
+                    this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
+                });
+            },
+            tick: function () {
+                const frame = this.el.sceneEl.frame;
+                if (!frame || !this.xrHitTestSource) return;
+
+                const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
+                if (hitTestResults.length > 0) {
+                    const pose = hitTestResults[0].getPose(this.refSpace);
+                    this.el.setAttribute('visible', 'true');
+                    this.el.object3D.position.copy(pose.transform.position);
+                    this.el.object3D.quaternion.copy(pose.transform.orientation);
+                } else {
+                    this.el.setAttribute('visible', 'false');
+                }
+            }
+        });
+    </script>
 </head>
-<body>
 
-    <model-viewer 
-        src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=3" 
-        ar 
-        ar-modes="webxr scene-viewer quick-look" 
-        camera-controls 
-        poster="yukleniyor.png" 
-        shadow-intensity="1" 
-        auto-rotate>
-        
-        <button slot="ar-button" id="ar-button">
-            Kamerada Gör (AR)
-        </button>
-        
-    </model-viewer>
+<body style="margin: 0; overflow: hidden;">
+    <div id="overlay" style="position: fixed; top: 10px; left: 10px; z-index: 999; color: white; font-family: sans-serif; pointer-events: none;">
+        <p id="status">AR Hazırlanıyor...</p>
+    </div>
 
+    <a-scene 
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        ar-manager
+        renderer="colorManagement: true;">
+
+        <a-assets>
+            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=3"></a-asset-item>
+        </a-assets>
+
+        <a-entity camera position="0 1.6 0">
+            <a-text id="infoText" value="AR Butonuna Basin" position="0 -0.5 -1" scale="0.5 0.5 0.5" align="center" color="yellow"></a-text>
+        </a-entity>
+
+        <a-entity id="reticle" ar-hit-test-simple visible="false">
+            <a-ring color="#00ff00" radius-inner="0.08" radius-outer="0.12" rotation="-90 0 0"></a-ring>
+        </a-entity>
+
+        <a-entity id="model" gltf-model="#myModel" scale="0.5 0.5 0.5" visible="false"></a-entity>
+
+    </a-scene>
+
+    <script>
+        // Basit bir durum takipçisi
+        document.querySelector('a-scene').addEventListener('enter-vr', () => {
+            document.getElementById('status').innerText = "Zemini yavasca tarayin...";
+        });
+    </script>
 </body>
 </html>

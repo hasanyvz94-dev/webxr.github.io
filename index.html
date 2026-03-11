@@ -5,20 +5,33 @@
     <title>HY Maket - Kesin Çözüm</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <style>
-        #overlay {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+        /* Tam ekran görünmez bir katman, dokunuşları yakalamak için */
+        #dom-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 10;
+            pointer-events: auto; /* Dokunmaları yakala */
+            touch-action: none;   /* Tarayıcının kendi kendine yakınlaştırmasını veya kaydırmasını engelle */
+        }
+
+        #overlay-text {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             padding: 15px; background: rgba(0,0,0,0.8); color: white;
-            border-radius: 10px; font-family: sans-serif; z-index: 10;
-            text-align: center; pointer-events: none;
+            border-radius: 10px; font-family: sans-serif;
+            text-align: center; pointer-events: none; /* Metne tıklamaları yoksay */
         }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
-    <div id="overlay">Zemini tarayın ve dokunun...</div>
+    
+    <div id="dom-overlay">
+        <div id="overlay-text">Zemini tarayın ve dokunun...</div>
+    </div>
     
     <a-scene 
-        webxr="requiredFeatures: hit-test, local-floor;"
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #dom-overlay;"
         renderer="colorManagement: true;">
 
         <a-assets>
@@ -67,7 +80,7 @@
                             this.isPlaced = true;
                             this.el.setAttribute('visible', 'false'); 
                             
-                            document.getElementById('overlay').innerHTML = "Yerleşti!<br>Tek parmakla döndür, İki parmakla büyüt.";
+                            document.getElementById('overlay-text').innerHTML = "Yerleşti!<br>Tek parmakla döndür, İki parmakla büyüt.";
                         }
                     });
                 });
@@ -98,30 +111,33 @@
             lastX: 0
         };
 
-        window.addEventListener('touchstart', (e) => {
+        // Window yerine özel dokunma katmanımızı dinliyoruz
+        const overlay = document.getElementById('dom-overlay');
+
+        overlay.addEventListener('touchstart', (e) => {
             let model = document.querySelector('#model');
-            if (!model.getAttribute('visible')) return;
+            // Model henüz yerleştirilmediyse işlem yapma
+            if (model.getAttribute('visible') !== true && model.getAttribute('visible') !== 'true') return;
 
             if (e.touches.length === 2) {
-                // İki parmakla büyütme/küçültme
                 touchState.isScaling = true;
                 touchState.isRotating = false;
                 touchState.initialDist = Math.hypot(
                     e.touches[0].pageX - e.touches[1].pageX,
                     e.touches[0].pageY - e.touches[1].pageY
                 );
-                touchState.initialScale = Object.assign({}, model.getAttribute('scale'));
+                // Scale'i doğrudan Three.js nesnesinden alıyoruz (daha güvenli)
+                touchState.initialScale = { x: model.object3D.scale.x, y: model.object3D.scale.y, z: model.object3D.scale.z };
             } else if (e.touches.length === 1) {
-                // Tek parmakla döndürme
                 touchState.isRotating = true;
                 touchState.isScaling = false;
                 touchState.lastX = e.touches[0].pageX;
             }
         });
 
-        window.addEventListener('touchmove', (e) => {
+        overlay.addEventListener('touchmove', (e) => {
             let model = document.querySelector('#model');
-            if (!model.getAttribute('visible')) return;
+            if (model.getAttribute('visible') !== true && model.getAttribute('visible') !== 'true') return;
 
             if (e.touches.length === 2 && touchState.isScaling) {
                 let currentDist = Math.hypot(
@@ -135,23 +151,22 @@
                     z: touchState.initialScale.z * zoomFactor
                 };
                 
-                // Çok küçülüp kaybolmasını veya çok büyümesini engelleyelim
                 if (newScale.x > 0.005 && newScale.x < 10) {
-                    model.setAttribute('scale', newScale);
+                    // Performans ve titreşimi önlemek için Three.js üzerinden direkt atama yapıyoruz
+                    model.object3D.scale.set(newScale.x, newScale.y, newScale.z);
                 }
             } else if (e.touches.length === 1 && touchState.isRotating) {
                 let currentX = e.touches[0].pageX;
                 let deltaX = currentX - touchState.lastX;
                 
-                // Modeli Y ekseninde (kendi etrafında) döndür
-                // 0.01 değeri hassasiyettir, isteğe göre artırıp azaltabilirsiniz
+                // Modeli kendi etrafında döndür
                 model.object3D.rotation.y += deltaX * 0.01; 
                 
                 touchState.lastX = currentX;
             }
         });
 
-        window.addEventListener('touchend', (e) => {
+        overlay.addEventListener('touchend', (e) => {
             if (e.touches.length < 2) touchState.isScaling = false;
             if (e.touches.length === 0) touchState.isRotating = false;
         });

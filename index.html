@@ -2,30 +2,54 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>HY Maket - Kesin Çözüm</title>
+    <title>HY Maket - AR Deneyimi</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <style>
-        /* Tam ekran görünmez bir katman, dokunuşları yakalamak için */
+        /* A-Frame'in varsayılan sağ alttaki AR/VR butonunu tamamen gizliyoruz */
+        .a-enter-vr { display: none !important; }
+
+        /* Siteye ilk girildiğinde çıkacak olan şık giriş ekranı */
+        #intro-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #f4f4f9; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-family: sans-serif; text-align: center; padding: 20px; box-sizing: border-box;
+        }
+
+        #intro-screen h1 { margin: 0 0 10px 0; color: #333; }
+        #intro-screen p { color: #666; margin-bottom: 30px; }
+        
+        #start-btn {
+            padding: 15px 30px; font-size: 18px; color: white; background: #007bff;
+            border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        #start-btn:active { background: #0056b3; }
+
+        /* AR içindeki görünmez kontrol katmanı */
         #dom-overlay {
-            position: fixed;
-            top: 0; left: 0;
-            width: 100vw; height: 100vh;
-            z-index: 10;
-            pointer-events: auto; /* Dokunmaları yakala */
-            touch-action: none;   /* Tarayıcının kendi kendine yakınlaştırmasını veya kaydırmasını engelle */
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10; pointer-events: auto; touch-action: none;
+            display: none; /* İlk başta gizli, AR'a girince açılacak */
         }
 
         #overlay-text {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             padding: 15px; background: rgba(0,0,0,0.8); color: white;
             border-radius: 10px; font-family: sans-serif;
-            text-align: center; pointer-events: none; /* Metne tıklamaları yoksay */
+            text-align: center; pointer-events: none; width: 80%;
         }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
     
+    <div id="intro-screen">
+        <h1>Maket AR</h1>
+        <p>Maketi kendi ortamınızda görmek için kameranıza izin verin.</p>
+        <button id="start-btn">Kamerayı Aç ve Başla</button>
+    </div>
+
     <div id="dom-overlay">
         <div id="overlay-text">Zemini tarayın ve dokunun...</div>
     </div>
@@ -54,6 +78,36 @@
     </a-scene>
 
     <script>
+        // --- BAŞLANGIÇ EKRANI MANTIĞI ---
+        const startBtn = document.getElementById('start-btn');
+        const introScreen = document.getElementById('intro-screen');
+        const domOverlay = document.getElementById('dom-overlay');
+        const scene = document.querySelector('a-scene');
+
+        startBtn.addEventListener('click', () => {
+            // A-Frame'in arka planda oluşturduğu gizli AR butonuna kodla tıklıyoruz
+            const arButton = document.querySelector('.a-enter-ar');
+            if (arButton) {
+                arButton.click();
+            } else {
+                alert("Cihazınız veya tarayıcınız AR (WebXR) desteklemiyor.");
+            }
+        });
+
+        // AR moduna başarıyla girildiğinde giriş ekranını gizle, AR kontrollerini aç
+        scene.addEventListener('enter-vr', () => {
+            if (scene.is('ar-mode')) {
+                introScreen.style.display = 'none';
+                domOverlay.style.display = 'block';
+            }
+        });
+
+        // AR modundan çıkıldığında giriş ekranını geri getir
+        scene.addEventListener('exit-vr', () => {
+            introScreen.style.display = 'flex';
+            domOverlay.style.display = 'none';
+        });
+
         // --- AR YERLEŞTİRME SCRIPT ---
         AFRAME.registerComponent('ar-hit-test-simple', {
             init: function () {
@@ -63,6 +117,7 @@
                 this.isPlaced = false;
 
                 this.el.sceneEl.addEventListener('enter-vr', async () => {
+                    if (!this.el.sceneEl.is('ar-mode')) return;
                     let session = this.el.sceneEl.renderer.xr.getSession();
                     this.viewerSpace = await session.requestReferenceSpace('viewer');
                     this.refSpace = await session.requestReferenceSpace('local-floor');
@@ -80,7 +135,7 @@
                             this.isPlaced = true;
                             this.el.setAttribute('visible', 'false'); 
                             
-                            document.getElementById('overlay-text').innerHTML = "Yerleşti!<br>Tek parmakla döndür, İki parmakla büyüt.";
+                            document.getElementById('overlay-text').innerHTML = "Yerleşti!<br>Tek parmak: Döndür | İki parmak: Büyüt";
                         }
                     });
                 });
@@ -103,34 +158,19 @@
         });
 
         // --- MANUEL SCALE VE ROTATION SCRIPT ---
-        let touchState = {
-            isScaling: false,
-            initialDist: 0,
-            initialScale: {x: 0.05, y: 0.05, z: 0.05},
-            isRotating: false,
-            lastX: 0
-        };
-
-        // Window yerine özel dokunma katmanımızı dinliyoruz
+        let touchState = { isScaling: false, initialDist: 0, initialScale: {x: 0.05, y: 0.05, z: 0.05}, isRotating: false, lastX: 0 };
         const overlay = document.getElementById('dom-overlay');
 
         overlay.addEventListener('touchstart', (e) => {
             let model = document.querySelector('#model');
-            // Model henüz yerleştirilmediyse işlem yapma
             if (model.getAttribute('visible') !== true && model.getAttribute('visible') !== 'true') return;
 
             if (e.touches.length === 2) {
-                touchState.isScaling = true;
-                touchState.isRotating = false;
-                touchState.initialDist = Math.hypot(
-                    e.touches[0].pageX - e.touches[1].pageX,
-                    e.touches[0].pageY - e.touches[1].pageY
-                );
-                // Scale'i doğrudan Three.js nesnesinden alıyoruz (daha güvenli)
+                touchState.isScaling = true; touchState.isRotating = false;
+                touchState.initialDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 touchState.initialScale = { x: model.object3D.scale.x, y: model.object3D.scale.y, z: model.object3D.scale.z };
             } else if (e.touches.length === 1) {
-                touchState.isRotating = true;
-                touchState.isScaling = false;
+                touchState.isRotating = true; touchState.isScaling = false;
                 touchState.lastX = e.touches[0].pageX;
             }
         });
@@ -140,28 +180,15 @@
             if (model.getAttribute('visible') !== true && model.getAttribute('visible') !== 'true') return;
 
             if (e.touches.length === 2 && touchState.isScaling) {
-                let currentDist = Math.hypot(
-                    e.touches[0].pageX - e.touches[1].pageX,
-                    e.touches[0].pageY - e.touches[1].pageY
-                );
+                let currentDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                 let zoomFactor = currentDist / touchState.initialDist;
-                let newScale = {
-                    x: touchState.initialScale.x * zoomFactor,
-                    y: touchState.initialScale.y * zoomFactor,
-                    z: touchState.initialScale.z * zoomFactor
-                };
+                let newScale = { x: touchState.initialScale.x * zoomFactor, y: touchState.initialScale.y * zoomFactor, z: touchState.initialScale.z * zoomFactor };
                 
-                if (newScale.x > 0.005 && newScale.x < 10) {
-                    // Performans ve titreşimi önlemek için Three.js üzerinden direkt atama yapıyoruz
-                    model.object3D.scale.set(newScale.x, newScale.y, newScale.z);
-                }
+                if (newScale.x > 0.005 && newScale.x < 10) model.object3D.scale.set(newScale.x, newScale.y, newScale.z);
             } else if (e.touches.length === 1 && touchState.isRotating) {
                 let currentX = e.touches[0].pageX;
                 let deltaX = currentX - touchState.lastX;
-                
-                // Modeli kendi etrafında döndür
                 model.object3D.rotation.y += deltaX * 0.01; 
-                
                 touchState.lastX = currentX;
             }
         });

@@ -3,7 +3,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>HY AR Model Viewer</title>
+<title>HY AR Viewer Pro</title>
 
 <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 
@@ -12,7 +12,7 @@
 body{
 margin:0;
 overflow:hidden;
-font-family:sans-serif;
+font-family:Arial;
 }
 
 #overlay{
@@ -20,11 +20,37 @@ position:fixed;
 bottom:20px;
 left:50%;
 transform:translateX(-50%);
-background:rgba(0,0,0,0.8);
+background:rgba(0,0,0,0.75);
 color:white;
-padding:15px;
-border-radius:10px;
+padding:12px 18px;
+border-radius:8px;
 z-index:10;
+font-size:14px;
+}
+
+#ui{
+position:fixed;
+top:20px;
+left:20px;
+z-index:10;
+}
+
+button{
+padding:10px 14px;
+border:none;
+border-radius:6px;
+background:black;
+color:white;
+font-size:14px;
+}
+
+#scaleInfo{
+margin-top:10px;
+color:white;
+background:rgba(0,0,0,0.6);
+padding:6px 10px;
+border-radius:6px;
+font-size:13px;
 }
 
 </style>
@@ -37,25 +63,26 @@ z-index:10;
 Zemini tarayın ve dokunun
 </div>
 
+<div id="ui">
+<button onclick="resetModel()">Reset</button>
+<div id="scaleInfo">Scale: 1x</div>
+</div>
+
 <a-scene
-webxr="requiredFeatures: hit-test, local-floor;"
-renderer="antialias:true;colorManagement:true"
-shadow="type:pcfsoft"
->
+webxr="requiredFeatures: hit-test,local-floor"
+renderer="antialias:true;colorManagement:true;physicallyCorrectLights:true"
+shadow="type:pcfsoft">
 
 <a-assets>
 
-<a-asset-item id="modelGLB"
+<a-asset-item
+id="modelAsset"
 src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=5">
 </a-asset-item>
 
 </a-assets>
 
-<!-- reticle -->
-
-<a-entity id="reticle"
-visible="false"
-ar-hit-test>
+<a-entity id="reticle" visible="false" ar-hit-test>
 
 <a-ring
 radius-inner="0.05"
@@ -66,36 +93,28 @@ color="#00ff00">
 
 </a-entity>
 
-<!-- model -->
-
-<a-entity id="model"
-gltf-model="#modelGLB"
+<a-entity
+id="model"
+gltf-model="#modelAsset"
 visible="false"
 scale="0.05 0.05 0.05"
 shadow="cast:true;receive:true">
 </a-entity>
 
-<!-- ground shadow -->
-
 <a-plane
 rotation="-90 0 0"
-width="10"
-height="10"
+width="20"
+height="20"
 shadow="receive:true"
-material="color:#000;opacity:0.15">
+material="color:#000;opacity:0.2">
 </a-plane>
 
-<!-- lights -->
-
-<a-light
-type="ambient"
-intensity="0.8">
-</a-light>
+<a-light type="ambient" intensity="0.7"></a-light>
 
 <a-light
 type="directional"
 position="2 4 2"
-intensity="1"
+intensity="1.2"
 shadow="cast:true">
 </a-light>
 
@@ -105,6 +124,8 @@ shadow="cast:true">
 
 <script>
 
+let modelPlaced=false
+
 AFRAME.registerComponent('ar-hit-test',{
 
 init:function(){
@@ -112,7 +133,6 @@ init:function(){
 this.xrHitTestSource=null
 this.viewerSpace=null
 this.refSpace=null
-this.modelPlaced=false
 
 this.el.sceneEl.addEventListener('enter-vr',async()=>{
 
@@ -127,7 +147,7 @@ space:this.viewerSpace
 
 session.addEventListener('select',()=>{
 
-if(this.modelPlaced) return
+if(modelPlaced) return
 
 if(this.el.getAttribute('visible')){
 
@@ -138,12 +158,12 @@ model.object3D.quaternion.copy(this.el.object3D.quaternion)
 
 model.setAttribute("visible",true)
 
-this.modelPlaced=true
+modelPlaced=true
 
 this.el.setAttribute("visible",false)
 
 document.getElementById("overlay").innerHTML=
-"1 parmak döndür • 2 parmak büyüt • 3 parmak taşı"
+"1 parmak döndür • 2 parmak pinch büyüt"
 
 enableControls()
 
@@ -157,11 +177,10 @@ enableControls()
 
 tick:function(){
 
-if(this.modelPlaced) return
+if(modelPlaced) return
 
 const frame=this.el.sceneEl.frame
-
-if(!frame||!this.xrHitTestSource) return
+if(!frame || !this.xrHitTestSource) return
 
 const hits=frame.getHitTestResults(this.xrHitTestSource)
 
@@ -184,7 +203,6 @@ this.el.setAttribute("visible",false)
 
 })
 
-
 function enableControls(){
 
 const model=document.querySelector("#model")
@@ -193,7 +211,7 @@ let startX=0
 let startRot=0
 
 let startDist=0
-let startScale=0.05
+let startScale=model.object3D.scale.x
 
 window.addEventListener("touchstart",e=>{
 
@@ -218,7 +236,7 @@ window.addEventListener("touchmove",e=>{
 if(e.touches.length==1){
 
 let dx=e.touches[0].clientX-startX
-model.object3D.rotation.y=startRot+dx*0.01
+model.object3D.rotation.y=startRot + dx*0.01
 
 }
 
@@ -228,9 +246,12 @@ let dist=getDistance(e.touches[0],e.touches[1])
 
 let scale=startScale*(dist/startDist)
 
-scale=Math.max(0.01,Math.min(scale,5))
+scale=Math.max(0.02,Math.min(scale,6))
 
 model.object3D.scale.set(scale,scale,scale)
+
+document.getElementById("scaleInfo").innerHTML=
+"Scale: "+scale.toFixed(2)+"x"
 
 }
 
@@ -238,13 +259,27 @@ model.object3D.scale.set(scale,scale,scale)
 
 }
 
-
 function getDistance(t1,t2){
 
 let dx=t1.clientX-t2.clientX
 let dy=t1.clientY-t2.clientY
 
 return Math.sqrt(dx*dx+dy*dy)
+
+}
+
+function resetModel(){
+
+const model=document.querySelector("#model")
+const reticle=document.querySelector("#reticle")
+
+model.setAttribute("visible",false)
+reticle.setAttribute("visible",true)
+
+modelPlaced=false
+
+document.getElementById("overlay").innerHTML=
+"Zemini tekrar tarayın"
 
 }
 

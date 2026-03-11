@@ -2,9 +2,8 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>HY Maket - Zoom & Rotate Pro</title>
+    <title>HY Maket - AR & VR Cardboard</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://raw.githack.com/fcor/aframe-physics-system/master/dist/aframe-physics-system.min.js"></script>
     <script src="https://unpkg.com/aframe-gesture-detector@1.1.0/dist/aframe-gesture-detector.min.js"></script>
     <script src="https://unpkg.com/aframe-gesture-handler@1.0.0/dist/aframe-gesture-handler.min.js"></script>
 
@@ -20,7 +19,7 @@
 
 <body style="margin: 0; overflow: hidden;">
 
-    <div id="overlay">Zemini tarayın ve dokunun...</div>
+    <div id="overlay">Mod Seçin: AR (Zemin) veya VR (Cardboard)</div>
 
     <a-scene 
         gesture-detector
@@ -28,54 +27,74 @@
         renderer="colorManagement: true;">
 
         <a-assets>
-            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=5"></a-asset-item>
+            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=6"></a-asset-item>
         </a-assets>
 
-        <a-entity id="reticle" visible="false" ar-hit-test-simple>
-            <a-ring color="#00ff00" radius-inner="0.04" radius-outer="0.06" rotation="-90 0 0"></a-ring>
+        <a-entity id="main-container" position="0 0 -1">
+            <a-entity id="model" 
+                      gltf-model="#myModel" 
+                      scale="0.05 0.05 0.05" 
+                      visible="true" 
+                      class="clickable"
+                      gesture-handler>
+            </a-entity>
         </a-entity>
 
-        <a-entity id="model" 
-                  gltf-model="#myModel" 
-                  scale="0.05 0.05 0.05" 
-                  visible="false"
-                  class="clickable"
-                  gesture-handler="minScale: 0.01; maxScale: 2">
-        </a-entity>
+        <a-entity id="reticle" visible="false" ar-hit-test-simple></a-entity>
 
         <a-light type="ambient" intensity="1"></a-light>
         <a-light type="directional" position="1 1 1" intensity="1"></a-light>
 
-        <a-entity camera position="0 1.6 0"></a-entity>
+        <a-entity camera position="0 1.6 0" look-controls>
+            <a-entity cursor="fuse: true; fuseTimeout: 1500"
+                      position="0 0 -0.5"
+                      geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.015"
+                      material="color: white; shader: flat"
+                      visible="false"> </a-entity>
+        </a-entity>
+
     </a-scene>
 
     <script>
+        // Sahne VR moduna girdiğinde davranışları ayarla
+        const sceneEl = document.querySelector('a-scene');
+        const overlay = document.getElementById('overlay');
+        const model = document.querySelector('#model');
+
+        sceneEl.addEventListener('enter-vr', function () {
+            if (sceneEl.is('ar-mode')) {
+                overlay.innerHTML = "AR Modu: Zemini tarayın.";
+                model.setAttribute('visible', 'false'); // Yerleştirene kadar gizle
+            } else {
+                overlay.innerHTML = "VR Modu: Cardboard'a takın.";
+                model.setAttribute('visible', 'true');
+                model.setAttribute('position', '0 0 -2'); // VR'da direkt karşıda dursun
+            }
+        });
+
+        // AR Yerleştirme Mantığı
         AFRAME.registerComponent('ar-hit-test-simple', {
             init: function () {
                 this.xrHitTestSource = null;
                 this.viewerSpace = null;
                 this.refSpace = null;
 
-                this.el.sceneEl.addEventListener('enter-vr', async () => {
+                this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
                     let session = this.el.sceneEl.renderer.xr.getSession();
-                    this.viewerSpace = await session.requestReferenceSpace('viewer');
-                    this.refSpace = await session.requestReferenceSpace('local-floor');
-                    this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
+                    if (this.el.sceneEl.is('ar-mode')) {
+                        this.viewerSpace = await session.requestReferenceSpace('viewer');
+                        this.refSpace = await session.requestReferenceSpace('local-floor');
+                        this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
+                    }
+                });
 
-                    session.addEventListener('select', (e) => {
-                        if (this.el.getAttribute('visible')) {
-                            const model = document.querySelector('#model');
-                            
-                            // Pozisyonu kopyala
-                            model.setAttribute('position', this.el.getAttribute('position'));
-                            
-                            // Zemin açısını kopyala
-                            model.object3D.quaternion.copy(this.el.object3D.quaternion);
-                            
-                            model.setAttribute('visible', 'true');
-                            document.getElementById('overlay').innerHTML = "Model Yerleşti!<br>Büyütmek için çimdikleyin, döndürmek için kaydırın.";
-                        }
-                    });
+                this.el.sceneEl.addEventListener('select', () => {
+                    if (this.el.getAttribute('visible') && this.el.sceneEl.is('ar-mode')) {
+                        model.setAttribute('position', this.el.getAttribute('position'));
+                        model.object3D.quaternion.copy(this.el.object3D.quaternion);
+                        model.setAttribute('visible', 'true');
+                        overlay.innerHTML = "Yerleşti! Cardboard için VR moduna geçebilirsiniz.";
+                    }
                 });
             },
             tick: function () {

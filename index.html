@@ -3,25 +3,26 @@
 <head>
     <meta charset="utf-8">
     <title>HY Maket - Tüm Telefonlar İçin AR</title>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
     <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
     <style>
         body {
             margin: 0; padding: 0; width: 100vw; height: 100vh;
             background-color: #f4f4f9; font-family: sans-serif;
             display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; /* Sayfanın aşağı yukarı kaymasını engeller */
         }
 
-        /* Modeli ekranda göstereceğimiz alan */
         model-viewer {
             width: 100%; height: 100%; border: none;
-            /* Yüklenirken arka plan rengi */
             --poster-color: transparent; 
         }
 
-        /* Bizim Özel AR Butonumuz - ÜSTE ALINDI */
         #ar-button {
             position: absolute; 
-            top: 30px; /* Burayı bottom yerine top yaptık */
+            top: 30px; 
             left: 50%; 
             transform: translateX(-50%);
             background-color: #007bff; color: white; border: none; border-radius: 8px;
@@ -30,8 +31,6 @@
         }
 
         #ar-button:active { background-color: #0056b3; }
-
-        /* AR desteklemeyen cihazlar için uyarı */
         #ar-prompt { display: none; }
     </style>
 </head>
@@ -43,6 +42,8 @@
         ar-modes="webxr scene-viewer quick-look" 
         camera-controls 
         shadow-intensity="1"
+        bounds="tight"
+        ar-scale="auto"
         alt="HY Maket 3D Model">
         
         <button slot="ar-button" id="ar-button">

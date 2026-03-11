@@ -2,110 +2,96 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>HY Maket - Gerçek Dünya Sabitlemesi (WebXR)</title>
+    <title>HY Maket - WebXR Pro</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
 
     <script>
-        // 1. ZEMİN ALGILAMA VE HEDEF HALKASI (RETICLE) BİLEŞENİ
-        AFRAME.registerComponent('ar-hit-test', {
+        AFRAME.registerComponent('ar-manager', {
             init: function () {
-                this.xrHitTestSource = null;
-                this.viewerSpace = null;
-                this.refSpace = null;
-
-                // WebXR oturumu başladığında zemin taramasını başlat
-                this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
-                    let session = this.el.sceneEl.renderer.xr.getSession();
-                    this.viewerSpace = await session.requestReferenceSpace('viewer');
-                    this.refSpace = await session.requestReferenceSpace('local');
-                    this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
-                });
-
-                this.el.sceneEl.renderer.xr.addEventListener('sessionend', () => {
-                    this.xrHitTestSource = null;
-                });
-            },
-            tick: function () {
-                if (this.el.sceneEl.is('ar-mode') && this.xrHitTestSource) {
-                    let frame = this.el.sceneEl.frame;
-                    if (!frame) return;
-
-                    // Kameranın baktığı yerde bir zemin var mı kontrol et
-                    let hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
-                    if (hitTestResults.length > 0) {
-                        let pose = hitTestResults[0].getPose(this.refSpace);
-                        
-                        // Zemin bulunduysa hedef halkasını görünür yap ve oraya taşı
-                        this.el.setAttribute('visible', 'true');
-                        this.el.object3D.position.copy(pose.transform.position);
-                        
-                        // Halkanın zemine tam yatay oturmasını sağla
-                        this.el.object3D.quaternion.copy(pose.transform.orientation);
-                    } else {
-                        // Zemin bulunamadıysa halkayı gizle
-                        this.el.setAttribute('visible', 'false');
-                    }
-                }
-            }
-        });
-
-        // 2. EKRANA DOKUNUNCA MODELİ YERLEŞTİRME BİLEŞENİ
-        AFRAME.registerComponent('tap-to-place', {
-            init: function () {
-                const reticle = document.getElementById('reticle');
-                const model = document.getElementById('model');
-
-                // AR moduna girildiğinde dokunma (select) olayını dinle
+                this.reticle = document.querySelector('#reticle');
+                this.model = document.querySelector('#model');
+                this.infoText = document.querySelector('#infoText');
+                
                 this.el.sceneEl.addEventListener('enter-vr', () => {
-                    const session = this.el.sceneEl.renderer.xr.getSession();
-                    if (session) {
+                    if (this.el.sceneEl.is('ar-mode')) {
+                        this.infoText.setAttribute('value', 'Zemini tarayin...');
+                        
+                        const session = this.el.sceneEl.renderer.xr.getSession();
                         session.addEventListener('select', () => {
-                            // Eğer hedef halkası ekranda görünüyorsa (zemin algılandıysa)
-                            if (reticle.getAttribute('visible')) {
-                                // Modeli görünür yap
-                                model.setAttribute('visible', 'true');
-                                
-                                // Modelin pozisyonunu hedef halkasının olduğu yere kopyala
-                                model.object3D.position.copy(reticle.object3D.position);
-                                model.object3D.quaternion.copy(reticle.object3D.quaternion);
-
-                                // İsteğe bağlı: Modeli yerleştirdikten sonra halkayı gizleyebilirsin
-                                // reticle.setAttribute('visible', 'false');
+                            if (this.reticle.getAttribute('visible')) {
+                                this.model.setAttribute('visible', 'true');
+                                this.model.object3D.position.copy(this.reticle.object3D.position);
+                                this.model.object3D.quaternion.copy(this.reticle.object3D.quaternion);
+                                this.infoText.setAttribute('value', 'Model Yerlestirildi!');
                             }
                         });
                     }
                 });
             }
         });
+
+        AFRAME.registerComponent('ar-hit-test-simple', {
+            init: function () {
+                this.xrHitTestSource = null;
+                this.viewerSpace = null;
+                this.refSpace = null;
+
+                this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
+                    let session = this.el.sceneEl.renderer.xr.getSession();
+                    this.viewerSpace = await session.requestReferenceSpace('viewer');
+                    this.refSpace = await session.requestReferenceSpace('local');
+                    this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
+                });
+            },
+            tick: function () {
+                const frame = this.el.sceneEl.frame;
+                if (!frame || !this.xrHitTestSource) return;
+
+                const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
+                if (hitTestResults.length > 0) {
+                    const pose = hitTestResults[0].getPose(this.refSpace);
+                    this.el.setAttribute('visible', 'true');
+                    this.el.object3D.position.copy(pose.transform.position);
+                    this.el.object3D.quaternion.copy(pose.transform.orientation);
+                } else {
+                    this.el.setAttribute('visible', 'false');
+                }
+            }
+        });
     </script>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
+    <div id="overlay" style="position: fixed; top: 10px; left: 10px; z-index: 999; color: white; font-family: sans-serif; pointer-events: none;">
+        <p id="status">AR Hazırlanıyor...</p>
+    </div>
+
     <a-scene 
-        webxr="requiredFeatures: hit-test, local-floor;" 
-        renderer="colorManagement: true, physicallyCorrectLights: true"
-        tap-to-place>
+        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        ar-manager
+        renderer="colorManagement: true;">
 
-        <a-entity camera position="0 1.6 0"></a-entity>
+        <a-assets>
+            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=3"></a-asset-item>
+        </a-assets>
 
-        <a-entity 
-            id="reticle" 
-            ar-hit-test 
-            visible="false">
-            <a-ring color="yellow" radius-inner="0.1" radius-outer="0.15" rotation="-90 0 0"></a-ring>
-            <a-circle color="yellow" radius="0.05" rotation="-90 0 0"></a-circle>
+        <a-entity camera position="0 1.6 0">
+            <a-text id="infoText" value="AR Butonuna Basin" position="0 -0.5 -1" scale="0.5 0.5 0.5" align="center" color="yellow"></a-text>
         </a-entity>
 
-        <a-entity
-            id="model"
-            gltf-model="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=3"
-            scale="0.5 0.5 0.5"
-            visible="false">
+        <a-entity id="reticle" ar-hit-test-simple visible="false">
+            <a-ring color="#00ff00" radius-inner="0.08" radius-outer="0.12" rotation="-90 0 0"></a-ring>
         </a-entity>
 
-        <a-light type="ambient" intensity="0.7"></a-light>
-        <a-light type="directional" position="1 2 1" intensity="0.5"></a-light>
+        <a-entity id="model" gltf-model="#myModel" scale="0.5 0.5 0.5" visible="false"></a-entity>
 
     </a-scene>
+
+    <script>
+        // Basit bir durum takipçisi
+        document.querySelector('a-scene').addEventListener('enter-vr', () => {
+            document.getElementById('status').innerText = "Zemini yavasca tarayin...";
+        });
+    </script>
 </body>
 </html>

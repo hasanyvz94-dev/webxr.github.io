@@ -1,93 +1,49 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>HY Maket - Fix</title>
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <style>
-        #overlay {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            padding: 15px; background: rgba(0,0,0,0.8); color: white;
-            border-radius: 10px; font-family: sans-serif; z-index: 10;
-        }
-    </style>
-</head>
-<body style="margin: 0; overflow: hidden;">
+AFRAME.registerComponent('ar-hit-test-simple', {
+    init: function () {
+        this.xrHitTestSource = null;
+        this.viewerSpace = null;
+        this.refSpace = null;
 
-    <div id="overlay">Zemini tarayın ve dokunun...</div>
+        this.el.sceneEl.addEventListener('enter-vr', async () => {
+            let session = this.el.sceneEl.renderer.xr.getSession();
+            this.viewerSpace = await session.requestReferenceSpace('viewer');
+            this.refSpace = await session.requestReferenceSpace('local-floor');
+            this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
 
-    <a-scene 
-        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
-        renderer="colorManagement: true; antialias: true;">
+            session.addEventListener('select', () => {
+                if (this.el.getAttribute('visible')) {
+                    const model = document.querySelector('#model');
+                    
+                    // Pozisyonu kopyala
+                    model.setAttribute('position', this.el.getAttribute('position'));
+                    
+                    // Rotasyonu kopyala (Zemine paralel durması için)
+                    model.object3D.quaternion.copy(this.el.object3D.quaternion);
+                    
+                    // EKSTRA ROTASYON: Eğer model ters bakıyorsa Y ekseninde döndürebilirsin
+                    // model.setAttribute('rotation', '0 180 0'); 
 
-        <a-assets>
-            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=4"></a-asset-item>
-        </a-assets>
-
-        <a-entity id="reticle" visible="false" ar-hit-test-simple>
-            <a-ring color="#00ff00" radius-inner="0.04" radius-outer="0.06" rotation="-90 0 0"></a-ring>
-        </a-entity>
-
-        <a-entity id="model" 
-                  gltf-model="#myModel" 
-                  scale="0.01 0.01 0.01" 
-                  visible="false">
-        </a-entity>
-
-        <a-light type="ambient" intensity="1"></a-light>
-        <a-light type="directional" position="1 1 1" intensity="1"></a-light>
-
-        <a-entity camera position="0 1.6 0"></a-entity>
-    </a-scene>
-
-    <script>
-        AFRAME.registerComponent('ar-hit-test-simple', {
-            init: function () {
-                this.xrHitTestSource = null;
-                this.viewerSpace = null;
-                this.refSpace = null;
-
-                this.el.sceneEl.addEventListener('enter-vr', async () => {
-                    let session = this.el.sceneEl.renderer.xr.getSession();
-                    this.viewerSpace = await session.requestReferenceSpace('viewer');
-                    this.refSpace = await session.requestReferenceSpace('local-floor');
-                    this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
-
-                    session.addEventListener('select', () => {
-                        if (this.el.getAttribute('visible')) {
-                            const model = document.querySelector('#model');
-                            
-                            // 1. Pozisyonu kopyala
-                            const pos = this.el.object3D.position;
-                            model.setAttribute('position', {x: pos.x, y: pos.y, z: pos.z});
-                            
-                            // 2. Rotasyonu kopyala
-                            model.object3D.quaternion.copy(this.el.object3D.quaternion);
-                            
-                            // 3. Modeli görünür yap ve ölçeğini ayarla (Maket boyutu)
-                            model.setAttribute('visible', 'true');
-                            model.setAttribute('scale', '0.05 0.05 0.05'); // Önce küçük başlatın
-                            
-                            document.getElementById('overlay').innerText = "Model Yerleşti!";
-                        }
-                    });
-                });
-            },
-            tick: function () {
-                const frame = this.el.sceneEl.frame;
-                if (!frame || !this.xrHitTestSource) return;
-
-                const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
-                if (hitTestResults.length > 0) {
-                    const pose = hitTestResults[0].getPose(this.refSpace);
-                    this.el.setAttribute('visible', 'true');
-                    this.el.object3D.position.copy(pose.transform.position);
-                    this.el.object3D.quaternion.copy(pose.transform.orientation);
-                } else {
-                    this.el.setAttribute('visible', 'false');
+                    // ÖLÇEK (SCALE): Beyaz ekranı önlemek için ideal maket boyutu
+                    model.setAttribute('scale', '0.05 0.05 0.05'); 
+                    
+                    model.setAttribute('visible', 'true');
+                    document.getElementById('overlay').innerText = "Model Sabitlendi!";
                 }
-            }
+            });
         });
-    </script>
-</body>
-</html>
+    },
+    tick: function () {
+        const frame = this.el.sceneEl.frame;
+        if (!frame || !this.xrHitTestSource) return;
+
+        const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
+        if (hitTestResults.length > 0) {
+            const pose = hitTestResults[0].getPose(this.refSpace);
+            this.el.setAttribute('visible', 'true');
+            this.el.object3D.position.copy(pose.transform.position);
+            this.el.object3D.quaternion.copy(pose.transform.orientation);
+        } else {
+            this.el.setAttribute('visible', 'false');
+        }
+    }
+});

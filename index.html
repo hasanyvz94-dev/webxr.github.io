@@ -12,7 +12,7 @@
             margin: 0; padding: 0; width: 100vw; height: 100vh;
             background-color: #f4f4f9; font-family: sans-serif;
             display: flex; flex-direction: column; align-items: center;
-            overflow: hidden; /* Sayfanın aşağı yukarı kaymasını engeller */
+            overflow: hidden; 
         }
 
         model-viewer {
@@ -31,7 +31,6 @@
         }
 
         #ar-button:active { background-color: #0056b3; }
-        #ar-prompt { display: none; }
     </style>
 </head>
 <body>
@@ -44,6 +43,7 @@
         shadow-intensity="1"
         bounds="tight"
         ar-scale="auto"
+        ar-placement="floor"
         alt="HY Maket 3D Model">
         
         <button slot="ar-button" id="ar-button">

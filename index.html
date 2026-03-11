@@ -2,115 +2,60 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>HY Maket - AR & VR Cardboard</title>
+    <title>HY Maket - VR Passthrough</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-gesture-detector@1.1.0/dist/aframe-gesture-detector.min.js"></script>
-    <script src="https://unpkg.com/aframe-gesture-handler@1.0.0/dist/aframe-gesture-handler.min.js"></script>
-
     <style>
         #overlay {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             padding: 15px; background: rgba(0,0,0,0.8); color: white;
             border-radius: 10px; font-family: sans-serif; z-index: 10;
-            text-align: center; pointer-events: none;
         }
     </style>
 </head>
 
 <body style="margin: 0; overflow: hidden;">
 
-    <div id="overlay">Mod Seçin: AR (Zemin) veya VR (Cardboard)</div>
+    <div id="overlay">VR Modunda Kamerayı Başlatın</div>
 
     <a-scene 
-        gesture-detector
-        webxr="requiredFeatures: hit-test, local-floor; optionalFeatures: dom-overlay; overlayElement: #overlay;"
-        renderer="colorManagement: true;">
+        webxr="optionalFeatures: dom-overlay; overlayElement: #overlay;"
+        renderer="colorManagement: true; alpha: true;">
 
         <a-assets>
-            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=6"></a-asset-item>
+            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb"></a-asset-item>
+            <video id="webcam" playsinline></video>
         </a-assets>
 
-        <a-entity id="main-container" position="0 0 -1">
-            <a-entity id="model" 
-                      gltf-model="#myModel" 
-                      scale="0.05 0.05 0.05" 
-                      visible="true" 
-                      class="clickable"
-                      gesture-handler>
-            </a-entity>
+        <a-videosphere src="#webcam" rotation="0 -90 0"></a-videosphere>
+
+        <a-entity id="model" 
+                  gltf-model="#myModel" 
+                  scale="0.05 0.05 0.05" 
+                  position="0 1.2 -2">
         </a-entity>
 
-        <a-entity id="reticle" visible="false" ar-hit-test-simple></a-entity>
-
-        <a-light type="ambient" intensity="1"></a-light>
-        <a-light type="directional" position="1 1 1" intensity="1"></a-light>
-
-        <a-entity camera position="0 1.6 0" look-controls>
-            <a-entity cursor="fuse: true; fuseTimeout: 1500"
-                      position="0 0 -0.5"
-                      geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.015"
-                      material="color: white; shader: flat"
-                      visible="false"> </a-entity>
-        </a-entity>
-
+        <a-light type="ambient" intensity="1.5"></a-light>
+        <a-entity camera look-controls></a-entity>
     </a-scene>
 
     <script>
-        // Sahne VR moduna girdiğinde davranışları ayarla
-        const sceneEl = document.querySelector('a-scene');
-        const overlay = document.getElementById('overlay');
-        const model = document.querySelector('#model');
+        const video = document.getElementById('webcam');
 
-        sceneEl.addEventListener('enter-vr', function () {
-            if (sceneEl.is('ar-mode')) {
-                overlay.innerHTML = "AR Modu: Zemini tarayın.";
-                model.setAttribute('visible', 'false'); // Yerleştirene kadar gizle
-            } else {
-                overlay.innerHTML = "VR Modu: Cardboard'a takın.";
-                model.setAttribute('visible', 'true');
-                model.setAttribute('position', '0 0 -2'); // VR'da direkt karşıda dursun
-            }
-        });
-
-        // AR Yerleştirme Mantığı
-        AFRAME.registerComponent('ar-hit-test-simple', {
-            init: function () {
-                this.xrHitTestSource = null;
-                this.viewerSpace = null;
-                this.refSpace = null;
-
-                this.el.sceneEl.renderer.xr.addEventListener('sessionstart', async () => {
-                    let session = this.el.sceneEl.renderer.xr.getSession();
-                    if (this.el.sceneEl.is('ar-mode')) {
-                        this.viewerSpace = await session.requestReferenceSpace('viewer');
-                        this.refSpace = await session.requestReferenceSpace('local-floor');
-                        this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
-                    }
+        // Kameraya erişim izni al ve videoyu başlat
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+                .then(function (stream) {
+                    video.srcObject = stream;
+                    video.play();
+                })
+                .catch(function (err) {
+                    console.error("Kamera erişimi reddedildi: ", err);
                 });
+        }
 
-                this.el.sceneEl.addEventListener('select', () => {
-                    if (this.el.getAttribute('visible') && this.el.sceneEl.is('ar-mode')) {
-                        model.setAttribute('position', this.el.getAttribute('position'));
-                        model.object3D.quaternion.copy(this.el.object3D.quaternion);
-                        model.setAttribute('visible', 'true');
-                        overlay.innerHTML = "Yerleşti! Cardboard için VR moduna geçebilirsiniz.";
-                    }
-                });
-            },
-            tick: function () {
-                const frame = this.el.sceneEl.frame;
-                if (!frame || !this.xrHitTestSource) return;
-
-                const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
-                if (hitTestResults.length > 0) {
-                    const pose = hitTestResults[0].getPose(this.refSpace);
-                    this.el.setAttribute('visible', 'true');
-                    this.el.object3D.position.copy(pose.transform.position);
-                    this.el.object3D.quaternion.copy(pose.transform.orientation);
-                } else {
-                    this.el.setAttribute('visible', 'false');
-                }
-            }
+        // VR Moduna girildiğinde uyarıyı güncelle
+        document.querySelector('a-scene').addEventListener('enter-vr', function () {
+            document.getElementById('overlay').style.display = 'none';
         });
     </script>
 </body>

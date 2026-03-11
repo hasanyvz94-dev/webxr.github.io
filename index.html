@@ -1,107 +1,201 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>HY Maket - Serbest Kontrol</title>
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-gesture-detector@1.1.0/dist/aframe-gesture-detector.min.js"></script>
-    <script src="https://unpkg.com/aframe-gesture-handler@1.0.0/dist/aframe-gesture-handler.min.js"></script>
-    <style>
-        #overlay {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            padding: 15px; background: rgba(0,0,0,0.8); color: white;
-            border-radius: 10px; font-family: sans-serif; z-index: 10;
-            text-align: center; pointer-events: none;
-        }
-    </style>
+<meta charset="utf-8">
+<title>HY Maket AR</title>
+
+<script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+
+<style>
+#overlay{
+position:fixed;
+bottom:20px;
+left:50%;
+transform:translateX(-50%);
+background:rgba(0,0,0,0.8);
+color:white;
+padding:15px;
+border-radius:10px;
+font-family:sans-serif;
+z-index:10;
+}
+</style>
+
 </head>
 
-<body style="margin: 0; overflow: hidden;">
-    <div id="overlay">Zemini tarayın ve dokunun...</div>
-    
-    <a-scene 
-        gesture-detector
-        webxr="requiredFeatures: hit-test, local-floor;"
-        renderer="colorManagement: true;">
+<body style="margin:0;overflow:hidden;">
 
-        <a-assets>
-            <a-asset-item id="myModel" src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=5"></a-asset-item>
-        </a-assets>
+<div id="overlay">Zemini tarayın ve dokunun</div>
 
-        <a-entity id="reticle" visible="false" ar-hit-test-simple>
-            <a-ring color="#00ff00" radius-inner="0.04" radius-outer="0.06" rotation="-90 0 0"></a-ring>
-        </a-entity>
+<a-scene
+webxr="requiredFeatures: hit-test, local-floor;"
+renderer="colorManagement:true">
 
-        <a-entity id="model" 
-                  gltf-model="#myModel" 
-                  scale="0.05 0.05 0.05" 
-                  visible="false"
-                  gesture-handler="enabled: true; minScale: 0.001; maxScale: 5">
-        </a-entity>
+<a-assets>
+<a-asset-item id="myModel"
+src="https://cdn.jsdelivr.net/gh/hasanyvz94-dev/dthamlet.github.io@main/model.glb?v=5">
+</a-asset-item>
+</a-assets>
 
-        <a-light type="ambient" intensity="1"></a-light>
-        <a-light type="directional" position="1 1 1" intensity="1"></a-light>
+<a-entity id="reticle" visible="false" ar-hit-test-simple>
+<a-ring color="#00ff00" radius-inner="0.04" radius-outer="0.06" rotation="-90 0 0"></a-ring>
+</a-entity>
 
-        <a-entity camera position="0 1.6 0"></a-entity>
-    </a-scene>
+<a-entity id="model"
+gltf-model="#myModel"
+scale="0.05 0.05 0.05"
+visible="false">
+</a-entity>
 
-    <script>
-        // Model yerleştikten sonra hareketleri serbest bırakan mantık
-        AFRAME.registerComponent('ar-hit-test-simple', {
-            init: function () {
-                this.xrHitTestSource = null;
-                this.viewerSpace = null;
-                this.refSpace = null;
-                this.isPlaced = false;
+<a-light type="ambient" intensity="1"></a-light>
+<a-light type="directional" position="1 1 1" intensity="1"></a-light>
 
-                this.el.sceneEl.addEventListener('enter-vr', async () => {
-                    let session = this.el.sceneEl.renderer.xr.getSession();
-                    this.viewerSpace = await session.requestReferenceSpace('viewer');
-                    this.refSpace = await session.requestReferenceSpace('local-floor');
-                    this.xrHitTestSource = await session.requestHitTestSource({ space: this.viewerSpace });
+<a-entity camera position="0 1.6 0"></a-entity>
 
-                    session.addEventListener('select', (e) => {
-                        // Eğer model zaten yerleştiyse, select (tıklama) işlemi artık yer değiştirmesin
-                        if (this.isPlaced) return;
+</a-scene>
 
-                        if (this.el.getAttribute('visible')) {
-                            const model = document.querySelector('#model');
-                            model.setAttribute('position', this.el.getAttribute('position'));
-                            model.object3D.quaternion.copy(this.el.object3D.quaternion);
-                            model.setAttribute('visible', 'true');
-                            
-                            this.isPlaced = true;
-                            this.el.setAttribute('visible', 'false'); 
-                            
-                            document.getElementById('overlay').innerHTML = "Ekranda herhangi bir yere dokunarak döndürebilir/büyütebilirsiniz.";
-                        }
-                    });
-                });
-            },
-            tick: function () {
-                if (this.isPlaced) return;
-                const frame = this.el.sceneEl.frame;
-                if (!frame || !this.xrHitTestSource) return;
+<script>
 
-                const hitTestResults = frame.getHitTestResults(this.xrHitTestSource);
-                if (hitTestResults.length > 0) {
-                    const pose = hitTestResults[0].getPose(this.refSpace);
-                    this.el.setAttribute('visible', 'true');
-                    this.el.object3D.position.copy(pose.transform.position);
-                    this.el.object3D.quaternion.copy(pose.transform.orientation);
-                } else {
-                    this.el.setAttribute('visible', 'false');
-                }
-            }
-        });
+AFRAME.registerComponent('ar-hit-test-simple',{
 
-        // KRİTİK EKLEME: Boşluğa dokunmayı modele iletme
-        // Gesture handler normalde 'click' bekler, biz ise sahneye gelen her hareketi modele yönlendiriyoruz.
-        window.addEventListener("onefingermove", (event) => {
-            if (document.querySelector('#model').getAttribute('visible')) {
-                // Döndürme işlemi model yerleşmişse her yerde çalışır
-            }
-        });
-    </script>
+init:function(){
+
+this.xrHitTestSource=null
+this.viewerSpace=null
+this.refSpace=null
+this.isPlaced=false
+
+this.el.sceneEl.addEventListener('enter-vr',async()=>{
+
+let session=this.el.sceneEl.renderer.xr.getSession()
+
+this.viewerSpace=await session.requestReferenceSpace('viewer')
+this.refSpace=await session.requestReferenceSpace('local-floor')
+
+this.xrHitTestSource=await session.requestHitTestSource({
+space:this.viewerSpace
+})
+
+session.addEventListener('select',()=>{
+
+if(this.isPlaced)return
+
+if(this.el.getAttribute('visible')){
+
+const model=document.querySelector('#model')
+
+model.setAttribute('position',this.el.getAttribute('position'))
+model.object3D.quaternion.copy(this.el.object3D.quaternion)
+
+model.setAttribute('visible',true)
+
+this.isPlaced=true
+this.el.setAttribute('visible',false)
+
+document.getElementById("overlay").innerHTML=
+"1 parmak döndür • 2 parmak büyüt"
+
+enableModelControl()
+
+}
+
+})
+
+})
+
+},
+
+tick:function(){
+
+if(this.isPlaced)return
+
+const frame=this.el.sceneEl.frame
+if(!frame||!this.xrHitTestSource)return
+
+const hits=frame.getHitTestResults(this.xrHitTestSource)
+
+if(hits.length>0){
+
+const pose=hits[0].getPose(this.refSpace)
+
+this.el.setAttribute('visible',true)
+
+this.el.object3D.position.copy(pose.transform.position)
+this.el.object3D.quaternion.copy(pose.transform.orientation)
+
+}else{
+
+this.el.setAttribute('visible',false)
+
+}
+
+}
+
+})
+
+
+function enableModelControl(){
+
+const model=document.querySelector('#model')
+
+let startDist=0
+let startScale=0.05
+let startX=0
+let startRot=0
+
+window.addEventListener("touchstart",e=>{
+
+if(e.touches.length==1){
+
+startX=e.touches[0].clientX
+startRot=model.object3D.rotation.y
+
+}
+
+if(e.touches.length==2){
+
+startDist=getDistance(e.touches[0],e.touches[1])
+startScale=model.object3D.scale.x
+
+}
+
+})
+
+window.addEventListener("touchmove",e=>{
+
+if(e.touches.length==1){
+
+let dx=e.touches[0].clientX-startX
+model.object3D.rotation.y=startRot+dx*0.01
+
+}
+
+if(e.touches.length==2){
+
+let dist=getDistance(e.touches[0],e.touches[1])
+
+let scale=startScale*(dist/startDist)
+
+scale=Math.max(0.01,Math.min(scale,5))
+
+model.object3D.scale.set(scale,scale,scale)
+
+}
+
+})
+
+}
+
+function getDistance(t1,t2){
+
+let dx=t1.clientX-t2.clientX
+let dy=t1.clientY-t2.clientY
+
+return Math.sqrt(dx*dx+dy*dy)
+
+}
+
+</script>
+
 </body>
 </html>

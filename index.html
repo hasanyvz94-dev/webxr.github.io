@@ -5,7 +5,7 @@
     <title>HY Maket - AR Deneyimi</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
     <style>
-        /* A-Frame'in varsayılan sağ alttaki AR/VR butonunu tamamen gizliyoruz */
+        /* A-Frame'in varsayılan alt butonlarını tamamen gizliyoruz */
         .a-enter-vr { display: none !important; }
 
         /* Siteye ilk girildiğinde çıkacak olan şık giriş ekranı */
@@ -84,13 +84,14 @@
         const domOverlay = document.getElementById('dom-overlay');
         const scene = document.querySelector('a-scene');
 
+        // Butona tıklandığında doğrudan A-Frame'in AR modunu tetikliyoruz
         startBtn.addEventListener('click', () => {
-            // A-Frame'in arka planda oluşturduğu gizli AR butonuna kodla tıklıyoruz
-            const arButton = document.querySelector('.a-enter-ar');
-            if (arButton) {
-                arButton.click();
+            if (scene.hasLoaded) {
+                scene.enterAR(); // Kesin çözüm burası
             } else {
-                alert("Cihazınız veya tarayıcınız AR (WebXR) desteklemiyor.");
+                scene.addEventListener('loaded', () => {
+                    scene.enterAR();
+                });
             }
         });
 
